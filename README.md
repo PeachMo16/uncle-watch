@@ -19,6 +19,13 @@ node uncle.mjs rate QUBT
 
 No dependencies. No API keys. Node 18+ and the SEC's public EDGAR API.
 
+The parser, amendment handling, rolling-window clustering, and score dimensions are
+covered by synthetic fixtures, so the tests never need the network:
+
+```
+npm test
+```
+
 ## the four commands
 
 ### `uncle rate <TICKER>` — how uncle is this boat?

@@ -4,6 +4,7 @@
   "description": "Who is selling your stock at the top, and how often they've done it before. Insider exit patterns from public SEC filings.",
   "type": "module",
   "bin": { "uncle": "./uncle.mjs" },
+  "scripts": { "test": "node --test" },
   "engines": { "node": ">=18" },
   "keywords": ["sec", "edgar", "form4", "insider-trading", "uncle-rate"],
   "license": "MIT"
