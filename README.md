@@ -23,7 +23,8 @@ No dependencies. No API keys. Node 18+ and the SEC's public EDGAR API.
 
 ### `uncle rate <TICKER>` — how uncle is this boat?
 
-Downloads every Form 4, splits routine 10b5-1 plan sells from opportunistic sells
+Downloads the most recent Form 4s (EDGAR's recent list, capped at 200 — the complete
+history for most small caps), splits routine 10b5-1 plan sells from opportunistic sells
 (the academic result: routine insider trades carry zero signal, opportunistic ones don't —
 Cohen, Malloy & Pomorski, *Decoding Inside Information*, J. Finance 2012),
 then scores seven dimensions, each 0–100 with the evidence attached:
@@ -42,17 +43,17 @@ Composite = weighted average = the **uncle rate**. It also derives the **uncle e
 the price band where insiders historically pulled the ripcord.
 
 ```
-🐀 $QUBT · UNCLE RATE 85/100
+🐀 $QUBT · UNCLE RATE 84/100
 
   Opportunistic ratio   87   20 of 23 sells were outside 10b5-1 plans
-  Cluster density      100   3 windows with ≥2 insiders selling within 10 days
-  Ladder acceleration   90   one director: 15% → 41% → 60% → 75% of stake in 4 days
+  Cluster density      100   4 strict 10-day windows with ≥2 insiders selling
+  Ladder acceleration  100   one insider escalated 53% → 100% of stake in 3 days
   Exit discipline       74   5 sells inside $15.02–$16.88 (12% band)
   Net insider flow     100   ~$33.9M sold vs $0 open-market bought
   Dilution engine      100   27 offering/shelf filings
-  Shell history         45   fresh 10-12G registration (reverse-merger fingerprint)
+  Shell history         30   fresh 12(g) registration (a common reverse-merger route)
 
-  uncle exit zone: $11.70–$15.62 (median $15.02) · last close $8.92
+  uncle exit zone: $11.70–$15.62 (median $15.02) · last close $8.46
 ```
 
 For calibration, the same rubric on a boring mega cap:
@@ -106,7 +107,9 @@ Every ticker you've rated, sorted by uncle rate, with each boat's loudest dimens
 
 - 10b5-1 flags are only reliable after the SEC's 2023 checkbox rule; older opportunistic counts skew high.
 - Foreign private issuers (Canadian shells on NASDAQ) are exempt from Form 4 entirely — their uncles are behind the curtain. A SEDI adapter would fix this.
-- Multi-owner joint filings are attributed to each owner (slight double-count).
+- Form 4/A amendments supersede their originals (deduped), but multi-owner joint filings are still attributed to each owner (slight double-count).
+- The dilution dimension counts all offering paperwork — a mega cap's bond 424B2s score the same as a shell's equity ATM. Read the evidence line, not just the number.
+- Submissions and prices are cached for 24h; Form 4 XMLs are immutable and cached forever.
 - The weights are hand-tuned on a handful of anchors, not backtested. This is a reading tool, not a trading system.
 
 ## vibecoded

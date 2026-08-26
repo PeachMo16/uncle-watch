@@ -7,7 +7,7 @@
 //   uncle tickets            leaderboard of every ticker you've rated
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
 import { tickerToCik, getSubmissions, fetchOwnershipXmls } from './lib/edgar.mjs';
-import { parseFiles, aggregateInsiders } from './lib/parse.mjs';
+import { parseFiles, aggregateInsiders, dedupeAmendments } from './lib/parse.mjs';
 import { getPrices } from './lib/prices.mjs';
 import { buildReport } from './lib/analyze.mjs';
 import { uncleRate } from './lib/score.mjs';
@@ -25,7 +25,7 @@ async function loadTicker(ticker) {
   process.stdout.write(`${name} (CIK ${cik}) · fetching Form 4s`);
   const { files, fetched } = await fetchOwnershipXmls(sub, dir, { forms: ['4', '4/A'] });
   // a company's EDGAR feed also lists Form 4s it filed as a *shareholder* of other companies — keep only filings where it is the issuer
-  const filings = parseFiles(files).filter((f) => !f.issuerCik || f.issuerCik === cik);
+  const filings = dedupeAmendments(parseFiles(files).filter((f) => !f.issuerCik || f.issuerCik === cik));
   console.log(` — ${filings.length} filings (${fetched} new)`);
   const insiders = aggregateInsiders(filings);
   writeFileSync(`${dir}/insiders.json`, JSON.stringify(insiders, null, 2));
@@ -74,7 +74,7 @@ async function who(q) {
   const { files, fetched } = await fetchOwnershipXmls(sub, dir);
   console.log(` — ${files.length} filings (${fetched} new)\n`);
   const boats = {};
-  for (const fl of parseFiles(files)) {
+  for (const fl of dedupeAmendments(parseFiles(files))) {
     if (!fl.issuerName) continue;
     const b = (boats[fl.issuerSymbol || fl.issuerCik] ??= { name: fl.issuerName, dates: [], sells: 0, sellValue: 0 });
     b.dates.push(fl.filingDate);
