@@ -1,0 +1,14 @@
+<svg viewBox="0 0 560 560" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,Menlo,monospace">
+<rect width="560" height="560" fill="#0d1117"/>
+<text x="280" y="34" text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="bold">🐀 $QUBT · uncle rate 85</text>
+<polygon points="280.0,242.5 317.1,260.4 326.3,300.6 300.6,332.8 259.4,332.8 233.7,300.6 242.9,260.4" fill="none" stroke="#21262d"/><polygon points="280.0,195.0 354.3,230.8 372.6,311.1 321.2,375.6 238.8,375.6 187.4,311.1 205.7,230.8" fill="none" stroke="#21262d"/><polygon points="280.0,147.5 391.4,201.2 418.9,321.7 341.8,418.4 218.2,418.4 141.1,321.7 168.6,201.2" fill="none" stroke="#21262d"/><polygon points="280.0,100.0 428.5,171.5 465.2,332.3 362.4,461.2 197.6,461.2 94.8,332.3 131.5,171.5" fill="none" stroke="#21262d"/><line x1="280" y1="290" x2="280.0" y2="100.0" stroke="#21262d"/><line x1="280" y1="290" x2="428.5" y2="171.5" stroke="#21262d"/><line x1="280" y1="290" x2="465.2" y2="332.3" stroke="#21262d"/><line x1="280" y1="290" x2="362.4" y2="461.2" stroke="#21262d"/><line x1="280" y1="290" x2="197.6" y2="461.2" stroke="#21262d"/><line x1="280" y1="290" x2="94.8" y2="332.3" stroke="#21262d"/><line x1="280" y1="290" x2="131.5" y2="171.5" stroke="#21262d"/>
+<polygon points="280.0,124.7 428.5,171.5 446.7,328.1 341.0,416.7 197.6,461.2 94.8,332.3 213.2,236.7" fill="#ff5d5d" fill-opacity="0.25" stroke="#ff5d5d" stroke-width="2"/>
+<text x="280" y="74" text-anchor="middle" fill="#8b949e" font-size="13">Opportunistic ratio</text>
+<text x="280" y="89" text-anchor="middle" fill="#ff5d5d" font-size="13" font-weight="bold">87</text><text x="448.9" y="155.3" text-anchor="start" fill="#8b949e" font-size="13">Cluster density</text>
+<text x="448.9" y="170.3" text-anchor="start" fill="#ff5d5d" font-size="13" font-weight="bold">100</text><text x="490.6" y="338.1" text-anchor="start" fill="#8b949e" font-size="13">Ladder acceleration</text>
+<text x="490.6" y="353.1" text-anchor="start" fill="#ff5d5d" font-size="13" font-weight="bold">90</text><text x="373.7" y="484.6" text-anchor="start" fill="#8b949e" font-size="13">Exit discipline</text>
+<text x="373.7" y="499.6" text-anchor="start" fill="#ff5d5d" font-size="13" font-weight="bold">74</text><text x="186.3" y="484.6" text-anchor="end" fill="#8b949e" font-size="13">Net insider flow</text>
+<text x="186.3" y="499.6" text-anchor="end" fill="#ff5d5d" font-size="13" font-weight="bold">100</text><text x="69.4" y="338.1" text-anchor="end" fill="#8b949e" font-size="13">Dilution engine</text>
+<text x="69.4" y="353.1" text-anchor="end" fill="#ff5d5d" font-size="13" font-weight="bold">100</text><text x="111.1" y="155.3" text-anchor="end" fill="#8b949e" font-size="13">Shell history</text>
+<text x="111.1" y="170.3" text-anchor="end" fill="#ff5d5d" font-size="13" font-weight="bold">45</text>
+</svg>

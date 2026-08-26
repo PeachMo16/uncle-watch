@@ -1,0 +1,5 @@
+node_modules/
+data/
+legacy/
+chart.html
+.DS_Store
