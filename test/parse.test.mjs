@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { aggregateInsiders, dedupeAmendments, parseFiling } from '../lib/parse.mjs';
+import { aggregateInsiders, dedupeAmendments, parseFiling, planStatusOf } from '../lib/parse.mjs';
 
 function filingXml({ sharesAfter = '0', plan = 'true', owner = 'DOE JANE' } = {}) {
   return `
@@ -46,7 +46,7 @@ test('parses a planned full exit without losing zero shares-after', () => {
   });
 
   assert.equal(filing.issuerCik, '123456');
-  assert.equal(filing.plan10b51, true);
+  assert.equal(filing.planStatus, '10b5-1 indicated');
   assert.deepEqual(filing.owners[0], {
     name: 'DOE JANE',
     cik: '42',
@@ -81,5 +81,18 @@ test('aggregates roles and keeps filing provenance on events', () => {
 
   assert.deepEqual(insider.roles.sort(), ['Chair', 'Director']);
   assert.equal(insider.events[0].accession, 'example-2');
-  assert.equal(insider.events[0].plan10b51, false);
+  assert.equal(insider.events[0].planStatus, 'no 10b5-1 indication');
+});
+
+test('plan status is three-valued around the 2023-04 checkbox rule', () => {
+  // post-rule filing, no checkbox → an actual "no" indication
+  const post = parseFiling(filingXml({ plan: 'false' }), { form: '4', filingDate: '2026-01-03' });
+  assert.equal(post.planStatus, 'no 10b5-1 indication');
+  // pre-rule filing, no checkbox → proves nothing
+  const pre = parseFiling(filingXml({ plan: 'false' }), { form: '4', filingDate: '2022-06-01' });
+  assert.equal(pre.planStatus, 'unknown');
+  // affirmative checkbox wins regardless of date
+  assert.equal(planStatusOf(true, '2022-06-01'), '10b5-1 indicated');
+  // missing filing date → unknown, never "no"
+  assert.equal(planStatusOf(false, undefined), 'unknown');
 });

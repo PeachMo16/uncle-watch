@@ -12,8 +12,8 @@ function insider(name, events) {
   return { name, roles: ['Director'], events };
 }
 
-function sell(date, { plan10b51 = false, price = 12, shares = 10, sharesAfter = 90 } = {}) {
-  return { code: 'S', date, plan10b51, price, shares, sharesAfter };
+function sell(date, { planStatus = 'no 10b5-1 indication', price = 12, shares = 10, sharesAfter = 90 } = {}) {
+  return { code: 'S', date, planStatus, price, shares, sharesAfter };
 }
 
 test('uses strict 10-day windows instead of chaining adjacent gaps', () => {
@@ -27,9 +27,9 @@ test('uses strict 10-day windows instead of chaining adjacent gaps', () => {
   assert.deepEqual(report.clusters[0].map((x) => x.insider), ['A', 'B']);
 });
 
-test('excludes scheduled plan sales from opportunistic clusters and exit zones', () => {
+test('excludes indicated plan sales from clusters and exit zones', () => {
   const report = buildReport([
-    insider('A', [sell('2026-01-03', { plan10b51: true, price: 99 })]),
+    insider('A', [sell('2026-01-03', { planStatus: '10b5-1 indicated', price: 99 })]),
     insider('B', [sell('2026-01-04', { price: 11 })]),
     insider('C', [sell('2026-01-05', { price: 13 })]),
   ], days);

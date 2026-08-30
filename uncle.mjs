@@ -49,6 +49,9 @@ async function rate(ticker) {
     console.log(`  ${bar} ${String(d.score).padStart(3)}  ${d.label}`);
     console.log(`  ${' '.repeat(26)}${d.evidence}`);
   }
+  for (const c of r.counterSignals ?? []) {
+    console.log(`\n  \x1b[32m${c.observed ? '↑' : '·'} ${c.label}: ${c.evidence}\x1b[0m`);
+  }
   if (report.exitZone) {
     console.log(`\n  uncle exit zone: $${report.exitZone.priceP25}–$${report.exitZone.priceP75} (median $${report.exitZone.median}) · last close $${report.lastClose.close.toFixed(2)}`);
   }
@@ -101,7 +104,9 @@ async function actions(ticker) {
     .sort((a, b) => b.date.localeCompare(a.date));
   console.log(`🐀 UNCLE ACTIONS · $${T} · ${feed.length} transactions, newest first\n`);
   for (const e of feed) {
-    const kind = e.code === 'S' ? (e.plan10b51 ? 'sell (10b5-1 plan)' : 'SELL ⚠') : e.code === 'P' ? 'BUY' : e.code === 'M' ? 'option exercise' : e.code === 'A' ? 'grant' : e.code === 'X' ? 'warrant exercise' : e.code;
+    const kind = e.code === 'S'
+      ? (e.planStatus === '10b5-1 indicated' ? 'sell (10b5-1 plan)' : e.planStatus === 'unknown' ? 'SELL (plan status ?)' : 'SELL ⚠')
+      : e.code === 'P' ? 'BUY' : e.code === 'M' ? 'option exercise' : e.code === 'A' ? 'grant' : e.code === 'X' ? 'warrant exercise' : e.code;
     console.log(`  ${e.date}  ${e.insider.padEnd(26)} ${kind.padEnd(18)} ${e.shares.toLocaleString().padStart(11)} sh${e.price ? ' @ $' + e.price : ''}  → holds ${e.sharesAfter?.toLocaleString() ?? '?'}`);
   }
 }
@@ -125,7 +130,7 @@ function tickets() {
 const run = { rate, who, actions, tickets };
 if (!cmd || !run[cmd] || (cmd !== 'tickets' && !arg)) {
   console.log('🐀 uncle — insider exit patterns from public SEC filings\n');
-  console.log('  uncle rate <TICKER>     uncle rate 0-100, seven dimensions, evidence attached');
+  console.log('  uncle rate <TICKER>     uncle rate 0-100, six risk dimensions + buy counter-signal, evidence attached');
   console.log('  uncle who <name|CIK>    one uncle\'s entire career of boats');
   console.log('  uncle actions <TICKER>  raw insider transaction feed');
   console.log('  uncle tickets           leaderboard of rated tickers');
