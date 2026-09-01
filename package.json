@@ -3,9 +3,35 @@
   "version": "0.3.0",
   "description": "Who is selling your stock at the top, and how often they've done it before. Insider exit patterns from public SEC filings.",
   "type": "module",
-  "bin": { "uncle": "./uncle.mjs" },
-  "scripts": { "test": "node --test" },
-  "engines": { "node": ">=18" },
-  "keywords": ["sec", "edgar", "form4", "insider-trading", "uncle-rate"],
+  "bin": {
+    "uncle": "./uncle.mjs"
+  },
+  "files": [
+    "uncle.mjs",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "sec",
+    "edgar",
+    "form4",
+    "insider-trading",
+    "uncle-rate"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PeachMo16/uncle-watch.git"
+  },
+  "homepage": "https://github.com/PeachMo16/uncle-watch#readme",
+  "bugs": {
+    "url": "https://github.com/PeachMo16/uncle-watch/issues"
+  },
   "license": "MIT"
 }

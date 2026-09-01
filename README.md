@@ -13,11 +13,19 @@ Every number in that sentence is from public SEC filings. Nobody reads them. Thi
 ## quick start
 
 ```
+npx uncle-watch rate QUBT
+```
+
+or from source:
+
+```
 git clone https://github.com/PeachMo16/uncle-watch && cd uncle-watch
 node uncle.mjs rate QUBT
 ```
 
 No dependencies. No API keys. Node 18+ and the SEC's public EDGAR API.
+A [weekly leaderboard](LEADERBOARD.md) of the tickers in [WATCHLIST](WATCHLIST) is
+rebuilt by GitHub Actions every Monday — send a PR to add a ticker.
 
 The parser, amendment handling, rolling-window clustering, and score dimensions are
 covered by synthetic fixtures, so the tests never need the network:
@@ -163,6 +171,10 @@ Every ticker you've rated, sorted by uncle rate, with each boat's loudest dimens
 
 On the two README anchors nothing moved (QUBT 83, GOOG 17); the fixes bite on
 tickers with pre-2023 histories, corrected filings, or token-sized insiders.
+
+Also in v0.3: the SEC User-Agent lost its parenthesised URL — sec.gov started
+answering 403 to it, which broke every fresh clone — and a failed EDGAR/Yahoo
+fetch now falls back to a stale local cache with a loud warning instead of crashing.
 
 **v0.2 (2026-08-30)** — scoring semantics audited against the 1974–2003 insider-trading
 literature by [gold-digger](https://github.com/PeachMo16/gold-digger), a sibling project

@@ -1,0 +1,33 @@
+name: leaderboard
+
+on:
+  schedule:
+    - cron: '17 13 * * 1'   # Mondays 13:17 UTC, after the weekend's Form 4 backlog is indexed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: rate the watchlist
+        run: |
+          set -e
+          for t in $(grep -v '^#' WATCHLIST); do
+            node uncle.mjs rate "$t"
+          done
+      - name: build LEADERBOARD.md
+        run: node scripts/leaderboard.mjs
+      - name: commit if changed
+        run: |
+          git config user.name "uncle-watch bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add LEADERBOARD.md
+          git diff --cached --quiet && echo "no change" || git commit -m "leaderboard: weekly update $(date -u +%F)"
+          git push
