@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 
 import { aggregateInsiders, dedupeAmendments, parseFiling, planStatusOf } from '../lib/parse.mjs';
 
-function filingXml({ sharesAfter = '0', plan = 'true', owner = 'DOE JANE' } = {}) {
+function filingXml({ sharesAfter = '0', plan = 'true', owner = 'DOE JANE', originalDate = null, code = 'S' } = {}) {
   return `
     <ownershipDocument>
-      <periodOfReport>2026-01-02</periodOfReport>
+      <periodOfReport>2026-01-02</periodOfReport>${originalDate ? `\n      <dateOfOriginalSubmission>${originalDate}</dateOfOriginalSubmission>` : ''}
       <issuer>
         <issuerCik>0000123456</issuerCik>
         <issuerName>Example Corp</issuerName>
@@ -27,7 +27,7 @@ function filingXml({ sharesAfter = '0', plan = 'true', owner = 'DOE JANE' } = {}
       <aff10b5One>${plan}</aff10b5One>
       <nonDerivativeTransaction>
         <transactionDate><value>2026-01-02</value></transactionDate>
-        <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+        <transactionCoding><transactionCode>${code}</transactionCode></transactionCoding>
         <transactionAmounts>
           <transactionShares><value>100</value></transactionShares>
           <transactionPricePerShare><value>12.50</value></transactionPricePerShare>
@@ -95,4 +95,35 @@ test('plan status is three-valued around the 2023-04 checkbox rule', () => {
   assert.equal(planStatusOf(true, '2022-06-01'), '10b5-1 indicated');
   // missing filing date → unknown, never "no"
   assert.equal(planStatusOf(false, undefined), 'unknown');
+});
+
+test('a Form 4/A replaces only the original it names; a sibling Form 4 for the same period survives', () => {
+  const grant = parseFiling(filingXml({ code: 'A', sharesAfter: '1000' }), {
+    form: '4', filingDate: '2026-01-03', accession: 'grant',
+  });
+  const sale = parseFiling(filingXml({ sharesAfter: '900' }), {
+    form: '4', filingDate: '2026-01-10', accession: 'sale',
+  });
+  const saleFix = parseFiling(filingXml({ sharesAfter: '850', originalDate: '2026-01-10' }), {
+    form: '4/A', filingDate: '2026-01-12', accession: 'sale-fix',
+  });
+
+  const deduped = dedupeAmendments([grant, sale, saleFix]);
+  assert.deepEqual(deduped.map((f) => f.accession), ['grant', 'sale-fix']);
+  assert.equal(saleFix.dateOfOriginalSubmission, '2026-01-10');
+});
+
+test('an amendment that names no original date falls back to superseding the whole period group', () => {
+  const a = parseFiling(filingXml(), { form: '4', filingDate: '2026-01-03', accession: 'a' });
+  const b = parseFiling(filingXml(), { form: '4', filingDate: '2026-01-10', accession: 'b' });
+  const fix = parseFiling(filingXml(), { form: '4/A', filingDate: '2026-01-12', accession: 'fix' });
+  assert.deepEqual(dedupeAmendments([a, b, fix]).map((f) => f.accession), ['fix']);
+});
+
+test('an amendment whose original is outside the fetched window is kept, and drops nothing', () => {
+  const other = parseFiling(filingXml(), { form: '4', filingDate: '2026-01-03', accession: 'other' });
+  const orphanFix = parseFiling(filingXml({ originalDate: '2025-12-20' }), {
+    form: '4/A', filingDate: '2026-01-12', accession: 'orphan-fix',
+  });
+  assert.deepEqual(dedupeAmendments([other, orphanFix]).map((f) => f.accession), ['other', 'orphan-fix']);
 });

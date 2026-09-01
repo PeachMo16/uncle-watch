@@ -40,7 +40,7 @@ then scores six risk dimensions, each 0–100 with the evidence attached:
 |---|---|
 | No 10b5-1 indication | sells filed without the pre-scheduled-plan checkbox |
 | Cluster density | different insiders reaching for the exit in the same week |
-| Ladder acceleration | escalating %-of-stake sells day after day |
+| Ladder acceleration | escalating %-of-stake sells day after day (whole run worth ≥ $25k — shape alone is not a signal) |
 | Exit discipline | one insider unloading inside a tight price band |
 | Dilution engine | shelf registrations and offering supplements |
 | Shell history | name changes, fresh 10-12G registrations (reverse-merger tell) |
@@ -58,7 +58,7 @@ the price band where insiders historically pulled the ripcord.
 
   No 10b5-1 indication  87   20 of 23 status-known sells filed with no 10b5-1 indication
   Cluster density      100   4 strict 10-day windows with ≥2 insiders selling
-  Ladder acceleration  100   one insider escalated 53% → 100% of stake in 3 days
+  Ladder acceleration  100   one insider escalated 53% → 100% of stake (~$573k) in 3 days
   Exit discipline       74   5 sells inside $15.02–$16.88 (12% band)
   Dilution engine      100   27 offering/shelf filings
   Shell history         30   fresh 12(g) registration (a common reverse-merger route)
@@ -75,7 +75,7 @@ For calibration, the same rubric on a boring mega cap:
 
   No 10b5-1 indication   0   0 of 306 status-known sells filed with no 10b5-1 indication
   Cluster density        0   no multi-insider sell clusters
-  Ladder acceleration    0   no accelerating multi-day sell ladders
+  Ladder acceleration    0   no escalating multi-day sell ladders worth ≥ $25,000
   Exit discipline        0   no insider with ≥3 sells lacking a 10b5-1 indication
   Dilution engine      100   30 offering/shelf filings (mostly bond 424B2s — see limitations)
   Shell history          0   no name changes or fresh registrations on file
@@ -127,19 +127,42 @@ Every ticker you've rated, sorted by uncle rate, with each boat's loudest dimens
   ranks which filings deserve your attention; it is not, and must never be read as, a
   tradeable signal.
 - The 10b5-1 checkbox is only mandatory on filings from April 2023, so plan status is
-  three-valued; pre-2023 sells are `unknown` and excluded from the ratio rather than
-  counted as unscheduled.
+  three-valued; pre-2023 sells are `unknown` and excluded from *every* scored dimension
+  rather than counted as unscheduled — each dimension prints how many it left out. The
+  unscored exit zone still includes them and prints its basis. A micro cap whose whole
+  story is pre-2023 will therefore score low on clusters, ladders, and discipline: that
+  is the tool refusing to guess, not a clean bill of health. Read `uncle actions`.
 - "No 10b5-1 indication" means exactly that — the filing didn't claim the affirmative
   defense. It is not Cohen/Malloy/Pomorski's behavioral routine/opportunistic
   classification (theirs is built from multi-year calendar regularity), and their
   results don't validate this filter.
 - Foreign private issuers (Canadian shells on NASDAQ) are exempt from Form 4 entirely — their uncles are behind the curtain. A SEDI adapter would fix this.
-- Form 4/A amendments supersede their originals (deduped), but multi-owner joint filings are still attributed to each owner (slight double-count).
+- A Form 4/A supersedes only the original it names (via `dateOfOriginalSubmission`), so a
+  sibling Form 4 for the same period survives; an amendment that names no original date
+  falls back to superseding its whole (issuer, owners, period) group. Multi-owner joint
+  filings are still attributed to each owner (slight double-count).
 - The dilution dimension counts all offering paperwork — a mega cap's bond 424B2s score the same as a shell's equity ATM. Read the evidence line, not just the number.
 - Submissions and prices are cached for 24h; Form 4 XMLs are immutable and cached forever.
-- The weights are hand-tuned on a handful of anchors, not backtested. This is a reading tool, not a trading system.
+- The weights and the $25k ladder floor are hand-tuned on a handful of anchors, not backtested. This is a reading tool, not a trading system.
 
 ## scoring changelog
+
+**v0.3 (2026-09-01)** — three fixes from a second code read, each with a test:
+
+- Form 4/A dedupe dropped innocent siblings: within one (issuer, owners, period) group,
+  any amendment used to erase *every* original — a grant filed a week before a corrected
+  sale went missing. Amendments now replace only the original whose filing date they
+  name; an undated amendment keeps the old conservative behaviour.
+- v0.2's "refuse to guess" about pre-2023 plan status only reached the ratio dimension;
+  cluster density, ladder acceleration, and exit discipline still treated every
+  unknown-status sell as unscheduled. All six scored dimensions now use only sells that
+  affirmatively lack a 10b5-1 indication, and print the excluded count. The exit zone
+  (unscored) keeps them, labeled.
+- Ladder acceleration had no value floor: a 50% → 100% exit of a hundred-dollar stake
+  scored 100, same as a seven-figure one. A run must now be worth ≥ $25k to count.
+
+On the two README anchors nothing moved (QUBT 83, GOOG 17); the fixes bite on
+tickers with pre-2023 histories, corrected filings, or token-sized insiders.
 
 **v0.2 (2026-08-30)** — scoring semantics audited against the 1974–2003 insider-trading
 literature by [gold-digger](https://github.com/PeachMo16/gold-digger), a sibling project

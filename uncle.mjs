@@ -53,7 +53,9 @@ async function rate(ticker) {
     console.log(`\n  \x1b[32m${c.observed ? '↑' : '·'} ${c.label}: ${c.evidence}\x1b[0m`);
   }
   if (report.exitZone) {
-    console.log(`\n  uncle exit zone: $${report.exitZone.priceP25}–$${report.exitZone.priceP75} (median $${report.exitZone.median}) · last close $${report.lastClose.close.toFixed(2)}`);
+    const z = report.exitZone;
+    const basis = z.basis?.unknown ? ` · basis: ${z.basis.noIndication} no-indication + ${z.basis.unknown} unknown-status (pre-2023) sells` : '';
+    console.log(`\n  uncle exit zone: $${z.priceP25}–$${z.priceP75} (median $${z.median}) · last close $${report.lastClose.close.toFixed(2)}${basis}`);
   }
   console.log(`\n  radar → ${dir}/radar.svg`);
 }

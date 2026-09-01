@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { uncleRate } from '../lib/score.mjs';
+import { uncleRate, LADDER_MIN_VALUE } from '../lib/score.mjs';
 
 const sub = {
   formerNames: [{ name: 'Old Example' }],
@@ -10,20 +10,20 @@ const sub = {
 const bareSub = { formerNames: [], filings: { recent: { form: [] } } };
 
 function sellRow(over = {}) {
-  return { insider: 'A', date: '2026-01-01', planStatus: 'no 10b5-1 indication', pctOfStake: 20, price: 10, value: 1000, ...over };
+  return { insider: 'A', date: '2026-01-01', planStatus: 'no 10b5-1 indication', pctOfStake: 20, price: 10, value: 10000, ...over };
 }
 
 test('returns six traceable risk dimensions and their weighted composite', () => {
   const sells = [
     sellRow(),
-    sellRow({ date: '2026-01-03', pctOfStake: 50, price: 11, value: 2000 }),
-    sellRow({ date: '2026-01-05', pctOfStake: 80, price: 12, value: 3000 }),
+    sellRow({ date: '2026-01-03', pctOfStake: 50, price: 11, value: 20000 }),
+    sellRow({ date: '2026-01-05', pctOfStake: 80, price: 12, value: 30000 }),
     sellRow({ insider: 'B', date: '2026-01-05', planStatus: '10b5-1 indicated', pctOfStake: 10, price: 12, value: 500 }),
   ];
   const report = { sells, buys: [], clusters: [[sells[0], { ...sells[1], insider: 'C' }]] };
 
   const rate = uncleRate(report, sub);
-  assert.equal(rate.scoringVersion, 2);
+  assert.equal(rate.scoringVersion, 3);
   assert.deepEqual(rate.dims.map((d) => d.key), [
     'noPlanIndication', 'clusters', 'ladder', 'discipline', 'dilution', 'shell',
   ]);
@@ -88,4 +88,38 @@ test('neither sells nor buys: zero scores, no manufactured danger', () => {
   const rate = uncleRate({ sells: [], buys: [], clusters: [] }, bareSub);
   assert.equal(rate.composite, 0);
   assert.equal(rate.counterSignals[0].observed, false);
+});
+
+// v3: every scored dimension refuses to guess about pre-2023 unknown-status sells
+test('unknown-status sells never drive ladder or discipline, and the exclusion is printed', () => {
+  const unknownRun = [
+    sellRow({ planStatus: 'unknown', date: '2022-03-01', pctOfStake: 10, price: 10, value: 50000 }),
+    sellRow({ planStatus: 'unknown', date: '2022-03-03', pctOfStake: 50, price: 10.2, value: 50000 }),
+    sellRow({ planStatus: 'unknown', date: '2022-03-05', pctOfStake: 100, price: 10.1, value: 50000 }),
+  ];
+  const rate = uncleRate({ sells: unknownRun, buys: [], clusters: [] }, bareSub);
+  for (const key of ['ladder', 'discipline', 'clusters']) {
+    const d = rate.dims.find((x) => x.key === key);
+    assert.equal(d.score, 0, key);
+    assert.match(d.evidence, /3 pre-2023 sells with unknown plan status excluded/, key);
+  }
+  assert.equal(rate.composite, 0);
+});
+
+test('ladder has a value floor: a tiny full exit is not a signal', () => {
+  const tiny = [
+    sellRow({ pctOfStake: 50, value: 50 }),
+    sellRow({ date: '2026-01-02', pctOfStake: 100, value: 50 }),
+  ];
+  const d = uncleRate({ sells: tiny, buys: [], clusters: [] }, bareSub).dims.find((x) => x.key === 'ladder');
+  assert.equal(d.score, 0);
+  assert.match(d.evidence, /1 below the floor ignored/);
+
+  const real = [
+    sellRow({ pctOfStake: 50, value: LADDER_MIN_VALUE / 2 }),
+    sellRow({ date: '2026-01-02', pctOfStake: 100, value: LADDER_MIN_VALUE / 2 }),
+  ];
+  const e = uncleRate({ sells: real, buys: [], clusters: [] }, bareSub).dims.find((x) => x.key === 'ladder');
+  assert.equal(e.score, 100);
+  assert.match(e.evidence, /50% → 100% of stake \(~\$25,000\)/);
 });

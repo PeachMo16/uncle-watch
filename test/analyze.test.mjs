@@ -47,3 +47,18 @@ test('derives percent of stake from the post-transaction balance', () => {
 
   assert.equal(report.sells[0].pctOfStake, 25);
 });
+
+test('unknown-status (pre-2023) sells are excluded from scored clusters but kept, labeled, in the exit zone', () => {
+  const report = buildReport([
+    insider('A', [sell('2026-01-03', { planStatus: 'unknown', price: 20 })]),
+    insider('B', [sell('2026-01-04', { planStatus: 'unknown', price: 20 })]),
+    insider('C', [sell('2026-01-05', { price: 11 })]),
+    insider('D', [sell('2026-01-06', { price: 11 })]),
+  ], days);
+
+  assert.equal(report.clusters.length, 1);
+  assert.deepEqual(report.clusters[0].map((x) => x.insider), ['C', 'D']);
+  assert.equal(report.unknownStatusSells, 2);
+  assert.deepEqual(report.exitZone.basis, { noIndication: 2, unknown: 2 });
+  assert.equal(report.exitZone.priceP75, 20);
+});
