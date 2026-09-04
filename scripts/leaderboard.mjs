@@ -29,6 +29,6 @@ for (const r of rows) {
   const z = r.exitZone ? `$${r.exitZone.priceP25.toFixed(2)}–$${r.exitZone.priceP75.toFixed(2)}` : '—';
   lines.push(`| $${r.ticker}${r.fpi ? ' ⚠ FPI' : ''} | **${r.composite}** | \`${bar(r.composite)}\` | ${top.label.toLowerCase()} (${top.score}) | ${buy?.observed ? '↑ yes' : 'none'} | ${z} | ${r.lastClose != null ? '$' + r.lastClose.toFixed(2) : '—'} |`);
 }
-lines.push('', '⚠ FPI = foreign private issuer, exempt from Form 4: the score is a floor, not a reading.', '');
+lines.push('', '⚠ FPI = foreign-issuer forms on file. Most FPI insiders were exempt from Form 4 until March 2026 and exemptions still apply case by case: the uncles may be behind the curtain, so the score is a floor, not a reading.', '');
 writeFileSync('LEADERBOARD.md', lines.join('\n'));
 console.log(`LEADERBOARD.md · ${rows.length} tickers`);

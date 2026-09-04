@@ -12,4 +12,4 @@ a reading aid that ranks which filings deserve your attention. See [honest limit
 | $POET ⚠ FPI | **28** | `███·······` | dilution engine (100) | none | — | $7.10 |
 | $GOOG | **17** | `██········` | dilution engine (100) | none | — | $332.03 |
 
-⚠ FPI = foreign private issuer, exempt from Form 4: the score is a floor, not a reading.
+⚠ FPI = foreign-issuer forms on file. Most FPI insiders were exempt from Form 4 until March 2026 and exemptions still apply case by case: the uncles may be behind the curtain, so the score is a floor, not a reading.

@@ -2,48 +2,64 @@
 // 🐀 uncle — who is selling your stock at the top, and how often they've done it before
 // usage:
 //   uncle rate <TICKER>      score a ticker (fetches SEC Form 4s + prices, prints report, writes radar SVG)
-//   uncle who <name|CIK>     one insider's full career: every company they've filed on
+//   uncle who <name|CIK>     observed career + personal historical comparison
 //   uncle actions <TICKER>   the raw feed: every insider transaction, newest first
 //   uncle tickets            leaderboard of every ticker you've rated
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
-import { tickerToCik, getSubmissions, fetchOwnershipXmls } from './lib/edgar.mjs';
+import { tickerToCik, getSubmissions, fetchOwnershipXmls, normalizeCik } from './lib/edgar.mjs';
 import { parseFiles, aggregateInsiders, dedupeAmendments } from './lib/parse.mjs';
 import { getPrices } from './lib/prices.mjs';
 import { buildReport } from './lib/analyze.mjs';
 import { uncleRate } from './lib/score.mjs';
 import { radarSvg } from './lib/radar.mjs';
+import { buildPersonalHistory } from './lib/history.mjs';
+import { parseArgs } from './lib/cli-options.mjs';
 
-const [cmd, arg] = process.argv.slice(2);
+let parsed;
+try { parsed = parseArgs(process.argv.slice(2)); }
+catch (error) { console.error(`uncle: ${error.message}`); process.exit(1); }
+const { command: cmd, argument: arg, options } = parsed;
 const money = (n) => '$' + Math.round(n).toLocaleString();
+
+function printCoverage(c) {
+  console.log(`  Coverage: ${c.loadedXmlFilings}/${c.eligibleXmlFilings} supported XML filings loaded; ${c.filingDateFrom ?? '?'} → ${c.filingDateTo ?? '?'}`);
+  console.log(`  Older indexes: ${c.history.archivesLoaded}/${c.history.archivesAdvertised} read; ${c.skippedFiles.length} unsupported filings; ${c.omittedFiles.length} omitted by limit; ${c.failedFiles.length} failed downloads.`);
+  if (c.history.failedArchives.length) console.log(`  ⚠ Failed history indexes: ${c.history.failedArchives.map((a) => a.name).join(', ')}`);
+  if (c.history.sources.some((s) => s.stale)) console.log('  ⚠ A submission index is from stale cache; new filings may be missing.');
+  if (!c.completeSupportedXml || c.skippedFiles.length) console.log('  Partial observed history; missing filings are not evidence of no trading.');
+}
 
 async function loadTicker(ticker) {
   const T = ticker.toUpperCase();
-  const dir = `data/${T}`;
+  if (!/^[A-Z0-9.-]{1,15}$/.test(T)) throw new Error('invalid ticker');
+  const dir = `${options.dataDir}/${T}`;
   mkdirSync(dir, { recursive: true });
-  const { cik, name } = await tickerToCik(T);
-  const sub = await getSubmissions(cik, `${dir}/submissions.json`);
+  const { cik, name } = await tickerToCik(T, options);
+  const sub = await getSubmissions(cik, `${dir}/submissions.json`, { history: options.history });
   process.stdout.write(`${name} (CIK ${cik}) · fetching Form 4s`);
-  const { files, fetched } = await fetchOwnershipXmls(sub, dir, { forms: ['4', '4/A'] });
+  const { files, fetched, coverage } = await fetchOwnershipXmls(sub, dir, { forms: ['4', '4/A'], cap: options.cap ?? 200 });
   // a company's EDGAR feed also lists Form 4s it filed as a *shareholder* of other companies — keep only filings where it is the issuer
   const filings = dedupeAmendments(parseFiles(files).filter((f) => !f.issuerCik || f.issuerCik === cik));
   console.log(` — ${filings.length} filings (${fetched} new)`);
+  printCoverage(coverage);
   const insiders = aggregateInsiders(filings);
   writeFileSync(`${dir}/insiders.json`, JSON.stringify(insiders, null, 2));
   const days = await getPrices(T, `${dir}/prices.json`);
   const report = buildReport(insiders, days);
   writeFileSync(`${dir}/report.json`, JSON.stringify(report, null, 2));
-  return { T, dir, name, sub, insiders, report };
+  writeFileSync(`${dir}/coverage.json`, JSON.stringify(coverage, null, 2));
+  return { T, dir, name, sub, insiders, report, coverage };
 }
 
 async function rate(ticker) {
-  const { T, dir, sub, report } = await loadTicker(ticker);
+  const { T, dir, sub, report, coverage } = await loadTicker(ticker);
   const r = uncleRate(report, sub);
-  const fpi = sub.filings.recent.form.some((f) => f === '20-F' || f === '6-K');
-  writeFileSync(`${dir}/score.json`, JSON.stringify({ ticker: T, ...r, fpi, generated: new Date().toISOString() }, null, 2));
+  const fpi = sub.filings.recent.form.some((f) => ['20-F', '40-F', '6-K'].includes(f));
+  writeFileSync(`${dir}/score.json`, JSON.stringify({ ticker: T, ...r, fpi, coverage, generated: new Date().toISOString() }, null, 2));
   writeFileSync(`${dir}/radar.svg`, radarSvg(T, r));
 
   console.log(`\n🐀 $${T} · UNCLE RATE ${r.composite}/100\n`);
-  if (fpi) console.log(`  ⚠ foreign private issuer — exempt from Form 4. Zero insider filings ≠ zero insider selling;\n    the uncles are behind the curtain (Canadian issuers: see SEDI). Score is a floor, not a reading.\n`);
+  if (fpi) console.log(`  ⚠ foreign-issuer forms on file. Most FPI insiders were exempt from Form 4 until March 2026 and exemptions\n    still apply case by case — zero filings ≠ zero selling; the uncles may be behind the curtain\n    (Canadian issuers: see SEDI). Score is a floor, not a reading. See README sources.\n`);
   for (const d of r.dims) {
     const bar = '█'.repeat(Math.round(d.score / 5)).padEnd(20, '·');
     console.log(`  ${bar} ${String(d.score).padStart(3)}  ${d.label}`);
@@ -55,7 +71,7 @@ async function rate(ticker) {
   if (report.exitZone) {
     const z = report.exitZone;
     const basis = z.basis?.unknown ? ` · basis: ${z.basis.noIndication} no-indication + ${z.basis.unknown} unknown-status (pre-2023) sells` : '';
-    console.log(`\n  uncle exit zone: $${z.priceP25}–$${z.priceP75} (median $${z.median}) · last close $${report.lastClose.close.toFixed(2)}${basis}`);
+    console.log(`\n  uncle exit zone: $${z.priceP25}–$${z.priceP75} (median $${z.median}) · last close ${report.lastClose ? '$' + report.lastClose.close.toFixed(2) : 'unavailable'}${basis}`);
   }
   console.log(`\n  radar → ${dir}/radar.svg`);
 }
@@ -63,44 +79,53 @@ async function rate(ticker) {
 async function who(q) {
   let cik = /^\d+$/.test(q) ? q : null;
   if (!cik) {
-    // search cached insiders for a name match
-    for (const t of readdirSync('data')) {
-      const p = `data/${t}/insiders.json`;
+    const candidates = new Map();
+    for (const t of existsSync(options.dataDir) ? readdirSync(options.dataDir) : []) {
+      const p = `${options.dataDir}/${t}/insiders.json`;
       if (!existsSync(p)) continue;
-      const hit = JSON.parse(readFileSync(p, 'utf8')).find((i) => i.name.toLowerCase().includes(q.toLowerCase()));
-      if (hit) { cik = hit.cik; console.log(`matched ${hit.name} (CIK ${cik}) via $${t}`); break; }
+      for (const hit of JSON.parse(readFileSync(p, 'utf8'))) {
+        if ([hit.name, ...(hit.aliases ?? [])].some((name) => name.toLowerCase().includes(q.toLowerCase())) && hit.cik) candidates.set(normalizeCik(hit.cik), hit.name);
+      }
     }
-    if (!cik) return console.log(`no cached insider matches "${q}" — run \`uncle rate <TICKER>\` first, or pass a CIK directly`);
+    if (candidates.size > 1) throw new Error(`ambiguous name "${q}"; pass a CIK: ${[...candidates].map(([id, name]) => `${name} (${id})`).join('; ')}`);
+    if (!candidates.size) throw new Error(`no cached insider matches "${q}" — run \`uncle rate <TICKER>\` first, or pass a CIK directly`);
+    cik = [...candidates.keys()][0];
   }
-  const dir = `data/people/${cik}`;
+  cik = normalizeCik(cik);
+  const dir = `${options.dataDir}/people/${cik}`;
   mkdirSync(dir, { recursive: true });
-  const sub = await getSubmissions(cik, `${dir}/submissions.json`);
-  process.stdout.write(`${sub.name} · fetching ownership filings`);
-  const { files, fetched } = await fetchOwnershipXmls(sub, dir);
-  console.log(` — ${files.length} filings (${fetched} new)\n`);
-  const boats = {};
-  for (const fl of dedupeAmendments(parseFiles(files))) {
-    if (!fl.issuerName) continue;
-    const b = (boats[fl.issuerSymbol || fl.issuerCik] ??= { name: fl.issuerName, dates: [], sells: 0, sellValue: 0 });
-    b.dates.push(fl.filingDate);
-    for (const t of fl.transactions) {
-      if (t.code !== 'S') continue;
-      b.sells++;
-      b.sellValue += t.shares * (t.price || 0);
+  const sub = await getSubmissions(cik, `${dir}/submissions.json`, { history: true });
+  if (!options.json) console.log(`${sub.name} · reading historical ownership filings`);
+  const { files, fetched, coverage } = await fetchOwnershipXmls(sub, dir, { cap: options.cap ?? Infinity, asOf: options.asOf });
+  const report = buildPersonalHistory(parseFiles(files), cik, { asOf: options.asOf, recentDays: options.recentDays, coverage });
+  report.name ??= sub.name;
+  const output = `${dir}/history${options.asOf ? '-' + options.asOf : ''}.json`;
+  writeFileSync(output, JSON.stringify(report, null, 2));
+  if (options.json) return console.log(JSON.stringify(report, null, 2));
+  console.log(`\n🐀 UNCLE WHO · ${sub.name} (CIK ${cik}) · ${report.companies.length} observed issuers · as of ${report.asOf}`);
+  printCoverage(coverage);
+  console.log(`  ${fetched} new downloads. Recent: ${report.windows.recent.from} → ${report.windows.recent.to}; baseline: ${report.windows.baseline.from} → ${report.windows.baseline.to}.`);
+  for (const b of report.companies) {
+    console.log(`\n  ${b.symbol || b.issuerCik} · ${b.name} (issuer CIK ${b.issuerCik})\n    ${b.firstFiling} → ${b.lastFiling} · ${b.filings.length} filings · ${b.lifetime.saleTransactions} sale transactions observed`);
+    if (b.symbols.length > 1) console.log(`    Symbols observed: ${b.symbols.join(' → ')}`);
+    console.log(`    Sale days: recent ${b.recent.saleDays}, baseline ${b.baseline.saleDays}. Buy days: recent ${b.recent.buyDays}, baseline ${b.baseline.buyDays}.`);
+    if (!b.recent.saleDays) {
+      console.log('    No recent selling days observed; no sale-size comparison.');
+      continue;
     }
+    const ratio = b.comparison.medianDailySaleValueRatio;
+    if (ratio !== null) console.log(`    Median reported value per selling day: ${b.recent.medianDailyReportedSaleValue.toLocaleString()} vs ${b.baseline.medianDailyReportedSaleValue.toLocaleString()} (${ratio}× own baseline; reported units, unadjusted).`);
+    else console.log(`    Size comparison unavailable: ${b.comparison.withheldReasons.join('; ')}.`);
+    console.log(`    Sale calendar months: recent ${b.comparison.recentSaleMonths.join(', ') || 'none'}; observed baseline ${b.comparison.baselineSaleMonths.join(', ') || 'none'}.`);
+    console.log(`    Recent plan-status transactions: ${Object.entries(b.recent.planStatus).map(([name, n]) => `${name}: ${n}`).join('; ')}.`);
   }
-  const list = Object.entries(boats).map(([sym, b]) => ({ sym, ...b, first: b.dates.sort()[0], last: b.dates[b.dates.length - 1] }))
-    .sort((a, b) => a.first.localeCompare(b.first));
-  console.log(`🐀 UNCLE WHO · ${sub.name} (CIK ${cik}) · ${list.length} boats\n`);
-  for (const b of list) {
-    console.log(`  ${b.sym.padEnd(8)} ${b.name.padEnd(40)} ${b.first} → ${b.last}  ${String(b.dates.length).padStart(2)} filings  sells: ${b.sells} tx ~${money(b.sellValue)}`);
-  }
+  console.log(`\n  Descriptive history, not a return signal or a routine/opportunistic classification.\n  Full timeline, filing links, exclusions and limitations → ${output}`);
 }
 
 async function actions(ticker) {
   const T = ticker.toUpperCase();
-  const p = `data/${T}/insiders.json`;
-  const insiders = existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : (await loadTicker(T)).insiders;
+  const p = `${options.dataDir}/${T}/insiders.json`;
+  const insiders = existsSync(p) && !options.history && options.cap === undefined ? JSON.parse(readFileSync(p, 'utf8')) : (await loadTicker(T)).insiders;
   const feed = insiders.flatMap((i) => i.events.map((e) => ({ ...e, insider: i.name })))
     .filter((e) => e.date)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -115,8 +140,8 @@ async function actions(ticker) {
 
 function tickets() {
   const rows = [];
-  for (const t of readdirSync('data')) {
-    const p = `data/${t}/score.json`;
+  for (const t of existsSync(options.dataDir) ? readdirSync(options.dataDir) : []) {
+    const p = `${options.dataDir}/${t}/score.json`;
     if (existsSync(p)) rows.push(JSON.parse(readFileSync(p, 'utf8')));
   }
   if (!rows.length) return console.log('no rated tickers yet — run `uncle rate <TICKER>` first');
@@ -130,12 +155,15 @@ function tickets() {
 }
 
 const run = { rate, who, actions, tickets };
-if (!cmd || !run[cmd] || (cmd !== 'tickets' && !arg)) {
+if (options.help || !cmd || !run[cmd] || (cmd !== 'tickets' && !arg)) {
   console.log('🐀 uncle — insider exit patterns from public SEC filings\n');
   console.log('  uncle rate <TICKER>     uncle rate 0-100, six risk dimensions + buy counter-signal, evidence attached');
-  console.log('  uncle who <name|CIK>    one uncle\'s entire career of boats');
+  console.log('  uncle who <name|CIK>    observed issuer history + own past vs recent behavior');
   console.log('  uncle actions <TICKER>  raw insider transaction feed');
   console.log('  uncle tickets           leaderboard of rated tickers');
-  process.exit(1);
+  console.log('\n  who: --as-of YYYY-MM-DD --recent-days 90 --limit all --json');
+  console.log('  rate: --history --limit all (default: recent list, max 200 XML filings)');
+  console.log('  all: --data-dir <directory>');
+  process.exit(options.help ? 0 : 1);
 }
-await run[cmd](arg);
+try { await run[cmd](arg); } catch (error) { console.error(`uncle: ${error.message}`); process.exitCode = 1; }

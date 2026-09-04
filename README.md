@@ -38,8 +38,8 @@ npm test
 
 ### `uncle rate <TICKER>` — how uncle is this boat?
 
-Downloads the most recent Form 4s (EDGAR's recent list, capped at 200 — the complete
-history for most small caps), classifies each sell's plan status three ways —
+Downloads the most recent Form 4s (EDGAR's recent list, capped at 200; coverage is
+printed rather than assumed), classifies each sell's plan status three ways —
 **10b5-1 indicated / no 10b5-1 indication / unknown** (the SEC's mandatory checkbox
 only applies to filings from April 2023; before that, a missing flag proves nothing) —
 then scores six risk dimensions, each 0–100 with the evidence attached:
@@ -98,23 +98,88 @@ Three hundred and six insider sells at Alphabet. Every single one under an indic
   <img src="assets/radar-qubt.svg" width="46%" /> <img src="assets/radar-goog.svg" width="46%" />
 </p>
 
-### `uncle who <name|CIK>` — one uncle's entire career
+### `uncle who <name|CIK>` — one uncle's entire career, and whether it just changed
 
 Every reporting owner has a personal CIK. Feed it in and get every company
-they've ever filed ownership forms on — their whole career of boats:
+they've ever filed ownership forms on — their whole career of boats. `who` follows
+the SEC's older submission-index files and downloads every supported ownership XML
+by default, grouped by **issuer CIK** so ticker and name changes stay together and
+two people with the same name stay apart. It covers what EDGAR still serves, not
+every trade of a lifetime — and it prints what it couldn't get.
 
 ```
-🐀 UNCLE WHO · FAGENSON ROBERT B (CIK 1215183) · 7 boats
+node uncle.mjs who 1215183
+node uncle.mjs who 1215183 --as-of 2025-09-17 --recent-days 90
+node uncle.mjs who 1215183 --limit 200 --json
+```
+
+The report compares the most recent 90 calendar days with the preceding 1,095
+days **at each issuer separately**. It shows selling/buying days, sale months,
+plan-status counts and, when the record supports it, the recent median reported
+sale value per selling day divided by that person's baseline median. Multiple
+transaction rows on one day are combined so splitting an order does not create
+extra selling days. It does not pool prices or dollar baselines across companies.
+
+The size ratio is withheld if the baseline has fewer than five selling days or
+less than 180 days between its first and last sale, if price/security/ownership
+basis is missing or mixed, if joint-owner filings obscure attribution, or if
+known coverage gaps affect the comparison period. Those minimums are display
+heuristics, not validated predictors. Values are reported units, without
+currency, inflation or stock-split normalization. A ratio is a descriptive change,
+not a probability of misconduct or a return signal. Calendar-month lists do not
+implement the Cohen/Malloy/Pomorski routine/opportunistic classifier.
+
+`--as-of` excludes later filings **before** resolving amendments, so a later
+correction cannot rewrite an earlier report. Transaction dates after the cutoff
+are excluded too. This is a day-level reconstruction from currently retrievable
+filings, not an archived intraday market-data snapshot. The default cutoff is
+today in UTC. The JSON includes raw transaction timelines, accession numbers,
+filing dates, acceptance timestamps, source links, excluded records and coverage.
+
+For the dated Fagenson example, the observed issuers are:
+
+```
+FAGENSON ROBERT B (CIK 1215183) · as of 2025-09-17
+57/57 supported XML filings loaded; no download failures or limit omissions
 
   RWY    RENT WAY INC               2003 → 2006    6 filings
-  DSS    DOCUMENT SECURITY SYSTEMS  2004 → 2018   27 filings
+  DSS    DOCUMENT SECURITY SYSTEMS  2004 → 2018   26 filings
   TQ     CASH TECHNOLOGIES          2007           1 filing
-  NHLD   NATIONAL HOLDINGS          2012 → 2021   16 filings
-  QUBT   Quantum Computing Inc.     2021 → 2026    7 filings   sells: 5 tx ~$1,556,005
+  NHLD   NATIONAL HOLDINGS          2012 → 2021   15 filings
+  QUBT   Quantum Computing Inc.     2021 → 2025    6 filings
 ```
 
 Five boats, all micro caps, one career. The only boat he ever cashed out on
 is the one that 40x'd during a hype wave. That list is a fingerprint.
+
+The QUBT window contains five observed selling days and zero in its preceding
+baseline window, so the personal size ratio is **unavailable**, not infinity.
+The tool won't invent a prior routine to compare against — the list above is the
+comparison, and it's the reader's job to read it.
+
+Reports save to `data/people/<CIK>/history.json`; an explicit cutoff saves to
+`history-YYYY-MM-DD.json`. Use `--data-dir <directory>` to isolate a run. Name
+lookup searches cached insiders and refuses ambiguous matches; a CIK is direct.
+
+### History coverage options
+
+```
+node uncle.mjs rate QUBT --history --limit all
+node uncle.mjs actions QUBT --history --limit 500
+```
+
+`who` reads all advertised indexes and all supported XMLs unless `--limit N`
+is supplied. `rate`/`actions` retain their recent-list, 200-XML default. `--history`
+adds old indexes; `--limit all` removes the XML cap. The offering/shell dimensions
+still use the recent index, preserving their existing definition. Changing the
+ownership window can change the other dimensions; compare reports with the same
+coverage, not just the same ticker.
+
+Every fetch records loaded XMLs, unsupported non-XML filings, omitted filings,
+failed downloads, failed/missing historical indexes and stale-cache use. Older
+text-only documents remain unparsed. A failed history page never silently becomes
+an empty history. Overlapping index pages are deduplicated by accession. Network
+requests have timeouts and stay paced below SEC's published request limit.
 
 ### `uncle actions <TICKER>` — the raw feed
 
@@ -144,16 +209,37 @@ Every ticker you've rated, sorted by uncle rate, with each boat's loudest dimens
   defense. It is not Cohen/Malloy/Pomorski's behavioral routine/opportunistic
   classification (theirs is built from multi-year calendar regularity), and their
   results don't validate this filter.
-- Foreign private issuers (Canadian shells on NASDAQ) are exempt from Form 4 entirely — their uncles are behind the curtain. A SEDI adapter would fix this.
+- Foreign-issuer coverage varies by period and applicable exemption. From
+  March 18, 2026, directors/officers of covered FPIs became subject to Section
+  16(a) reporting, with SEC exemptions for qualifying cases. A 20-F/40-F/6-K
+  flag is only a coverage prompt, not a determination of an individual's legal
+  obligation. Earlier histories may still be absent from EDGAR; local-regime
+  reporting such as SEDI is not yet integrated. See the current
+  [SEC reporting overview](https://www.sec.gov/about/divisions-offices/division-corporation-finance/holding-foreign-insiders-accountable-act-section-16a-reporting-requirements).
 - A Form 4/A supersedes only the original it names (via `dateOfOriginalSubmission`), so a
   sibling Form 4 for the same period survives; an amendment that names no original date
   falls back to superseding its whole (issuer, owners, period) group. Multi-owner joint
   filings are still attributed to each owner (slight double-count).
 - The dilution dimension counts all offering paperwork — a mega cap's bond 424B2s score the same as a shell's equity ATM. Read the evidence line, not just the number.
-- Submissions and prices are cached for 24h; Form 4 XMLs are immutable and cached forever.
+- Submissions and prices are cached for 24h. Ownership XMLs are retained and
+  reused locally; amendments have separate accessions. A local cache is not proof
+  of what was publicly available at every historical instant.
+- `who` analyzes non-derivative transactions; derivative tables and standalone
+  holdings are not converted into sales. Issuer history can include a holdings
+  filing without a purchase/sale event. Known omissions are not proof of absence.
+- Price-context ratios for sales before the available daily-price feed are now
+  unavailable; the tool never substitutes a later quote for an earlier sale.
 - The weights and the $25k ladder floor are hand-tuned on a handful of anchors, not backtested. This is a reading tool, not a trading system.
 
 ## scoring changelog
+
+**v0.4 (local development)** — historical submission indexes, explicit coverage,
+CIK-based person/issuer continuity, and an independent personal-history report.
+As-of filtering precedes amendment handling; 3/A and 5/A cannot erase a Form 4.
+Unsupported/missing files remain visible, and historical price context never
+borrows a future quote. FPI coverage wording updated for the 2026 rule change.
+The six scoring formulas and weights remain scoring version 3; personal behavior
+comparisons do not enter the composite.
 
 **v0.3 (2026-09-01)** — three fixes from a second code read, each with a test:
 
@@ -203,3 +289,9 @@ Zero dependencies, plain Node, every score traceable to a filing. Fork it, point
 ## license
 
 MIT
+
+## data documentation
+
+- [SEC submissions API and older index files](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)
+- [SEC developer access and request limits](https://www.sec.gov/about/developer-resources)
+- [SEC 2026 foreign-insider reporting overview and exemptions](https://www.sec.gov/about/divisions-offices/division-corporation-finance/holding-foreign-insiders-accountable-act-section-16a-reporting-requirements)

@@ -27,6 +27,16 @@ test('uses strict 10-day windows instead of chaining adjacent gaps', () => {
   assert.deepEqual(report.clusters[0].map((x) => x.insider), ['A', 'B']);
 });
 
+test('same-name people remain distinct in clusters and keep their source filing IDs', () => {
+  const report = buildReport([
+    { ...insider('SAME NAME', [{ ...sell('2026-01-01'), accession: 'source-a' }]), cik: '42' },
+    { ...insider('SAME NAME', [{ ...sell('2026-01-02'), accession: 'source-b' }]), cik: '43' },
+  ], days);
+  assert.equal(report.clusters.length, 1);
+  assert.deepEqual(report.clusters[0].map((s) => s.insiderCik), ['42', '43']);
+  assert.equal(report.sells[0].accession, 'source-a');
+});
+
 test('excludes indicated plan sales from clusters and exit zones', () => {
   const report = buildReport([
     insider('A', [sell('2026-01-03', { planStatus: '10b5-1 indicated', price: 99 })]),
@@ -46,6 +56,21 @@ test('derives percent of stake from the post-transaction balance', () => {
   ], days);
 
   assert.equal(report.sells[0].pctOfStake, 25);
+});
+
+test('historical sales before the price feed never borrow a future quote', () => {
+  const report = buildReport([insider('A', [sell('2005-01-03')])], days);
+  assert.equal(report.sells[0].runupX, null);
+  assert.equal(report.sells[0].offHigh, null);
+  assert.equal(report.sells[0].priceContextDays, 0);
+  assert.equal(report.exitZone.runupMedian, null);
+});
+
+test('an empty price feed still permits a descriptive filing report', () => {
+  const report = buildReport([insider('A', [sell('2026-01-03')])], []);
+  assert.equal(report.sells.length, 1);
+  assert.equal(report.sells[0].runupX, null);
+  assert.equal(report.lastClose, undefined);
 });
 
 test('unknown-status (pre-2023) sells are excluded from scored clusters but kept, labeled, in the exit zone', () => {

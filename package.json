@@ -1,6 +1,6 @@
 {
   "name": "uncle-watch",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Who is selling your stock at the top, and how often they've done it before. Insider exit patterns from public SEC filings.",
   "type": "module",
   "bin": {
