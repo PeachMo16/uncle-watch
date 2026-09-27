@@ -34,7 +34,7 @@ covered by synthetic fixtures, so the tests never need the network:
 npm test
 ```
 
-## the four commands
+## the five commands
 
 ### `uncle rate <TICKER>` — how uncle is this boat?
 
@@ -180,6 +180,53 @@ failed downloads, failed/missing historical indexes and stale-cache use. Older
 text-only documents remain unparsed. A failed history page never silently becomes
 an empty history. Overlapping index pages are deduplicated by accession. Network
 requests have timeouts and stay paced below SEC's published request limit.
+
+### `uncle story <TICKER>` — what the company was saying when they sold
+
+`rate` scores the sells. `story` puts them next to the news. Every 8-K a company files
+carries the SEC's own item codes for what it announces — a material agreement (1.01),
+an acquisition closed (2.01), an unregistered sale of equity (3.02), an officer leaving
+(5.02), a press release (7.01). `story` reads the codes off the same submissions index
+`rate` already fetched, lines them up with every sell that lacks a 10b5-1 indication,
+and says for each one what kind of filing came next and how many days later.
+
+```
+🐀 UNCLE STORY · $QUBT · 8-K item codes next to insider sells · 2025-02-08 → 2026-08-10
+
+  Huang Yuping sold 4.5% of stake ($14,415,000) on 2025-09-04, 20 days before an 8-K: material agreement · unregistered sale of equity · press release (Reg FD)
+
+  2025-10-08  8-K    material agreement · unregistered sale of equity · press release (Reg FD) (event 2025-10-05)
+  2025-09-24  8-K    material agreement · unregistered sale of equity · press release (Reg FD) (event 2025-09-21)
+  2025-09-15  SELL   FAGENSON ROBERT B        100% of stake         $84,410 @ $16.882  ↑ 9d before 8-K
+  2025-09-12  SELL   FAGENSON ROBERT B        75% of stake         $234,362 @ $15.6241  ↑ 12d before 8-K
+  2025-09-11  SELL   FAGENSON ROBERT B        60% of stake         $468,882 @ $15.6294  ↑ 13d before 8-K
+  2025-09-10  SELL   FAGENSON ROBERT B        41.2% of stake       $543,053 @ $15.5158  ↑ 14d before 8-K
+  2025-09-09  SELL   FAGENSON ROBERT B        15% of stake         $225,299 @ $15.0199  ↑ 15d before 8-K
+  2025-09-08  SELL   Shabani Javad            100% of stake        $266,653 @ $15.26  ↑ 16d before 8-K
+  2025-09-05  SELL   Shabani Javad            53.4% of stake       $306,000 @ $15.3  ↑ 19d before 8-K
+  2025-09-04  SELL   Huang Yuping             4.5% of stake     $14,415,000 @ $14.415  ↑ 20d before 8-K
+  2025-06-25  8-K    material agreement · unregistered sale of equity · press release (Reg FD) (event 2025-06-22)
+  2025-06-12  SELL   Boehmler Christopher     100% of stake        $928,800 @ $20  ↑ 8d before 8-K
+  ...
+
+  16 of 20 sells without a 10b5-1 indication came within 30 days before an 8-K; 5 within 30 days after one.
+  Most common item ahead of a sell: 3.02 unregistered sale of equity (9 sells).
+  Baseline: a random day in this period was within 30 days before some 8-K 80% of the time.
+  3 10b5-1-indicated sells excluded: scheduled in advance, their timing is not the insider's.
+  Item codes only — the 8-K bodies were not read. A sell near a filing is timing, not evidence of knowledge or wrongdoing.
+```
+
+The four-day ladder this README opens with sat nine to fifteen days ahead of a filing
+whose item codes say *unregistered sale of equity*: the company was about to issue new
+shares. So did the June cluster before it. That is the sentence `rate` could not say.
+
+Two honesty rules are built in. A press release (7.01) or "other event" (8.01) rides on
+most substantive filings, so it counts in the tally only when a filing carries nothing more
+specific. And the **baseline** line says how much of the calendar sits inside the window
+before *some* 8-K: a company that files monthly puts most days there, and then "sold
+before a filing" describes the calendar, not the insiders — read the item codes instead.
+`story` reads codes, never filing bodies; a label says what kind of news, not what it said.
+Output → `data/<TICKER>/story.json`.
 
 ### `uncle actions <TICKER>` — the raw feed
 

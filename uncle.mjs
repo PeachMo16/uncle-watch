@@ -3,6 +3,7 @@
 // usage:
 //   uncle rate <TICKER>      score a ticker (fetches SEC Form 4s + prices, prints report, writes radar SVG)
 //   uncle who <name|CIK>     observed career + personal historical comparison
+//   uncle story <TICKER>     what the company was announcing when they sold: 8-K item codes next to the sells
 //   uncle actions <TICKER>   the raw feed: every insider transaction, newest first
 //   uncle tickets            leaderboard of every ticker you've rated
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
@@ -13,6 +14,7 @@ import { buildReport } from './lib/analyze.mjs';
 import { uncleRate } from './lib/score.mjs';
 import { radarSvg } from './lib/radar.mjs';
 import { buildPersonalHistory } from './lib/history.mjs';
+import { buildStory } from './lib/story.mjs';
 import { parseArgs } from './lib/cli-options.mjs';
 
 let parsed;
@@ -138,6 +140,36 @@ async function actions(ticker) {
   }
 }
 
+async function story(ticker) {
+  const T = ticker.toUpperCase();
+  const dir = `${options.dataDir}/${T}`;
+  const cached = existsSync(`${dir}/report.json`) && existsSync(`${dir}/submissions.json`) && !options.history && options.cap === undefined;
+  const { sub, report } = cached
+    ? { sub: JSON.parse(readFileSync(`${dir}/submissions.json`, 'utf8')), report: JSON.parse(readFileSync(`${dir}/report.json`, 'utf8')) }
+    : await loadTicker(T);
+  const st = buildStory(sub, report);
+  writeFileSync(`${dir}/story.json`, JSON.stringify(st, null, 2));
+  console.log(`\n🐀 UNCLE STORY · $${T} · 8-K item codes next to insider sells · ${st.from ?? '?'} → ${st.to ?? '?'}\n`);
+  if (st.summary.headline) console.log(`  ${st.summary.headline}\n`);
+  for (const t of st.timeline) {
+    if (t.kind === '8-K') {
+      const ev = t.eventDate && t.eventDate !== t.date ? ` (event ${t.eventDate})` : '';
+      console.log(`  ${t.date}  ${(t.amendment ? '8-K/A' : '8-K').padEnd(6)} ${t.labels.join(' · ')}${ev}`);
+    } else {
+      const stake = t.pctOfStake != null ? `${t.pctOfStake}% of stake` : `${t.shares.toLocaleString()} sh`;
+      const flag = t.planStatus === 'unknown' ? ' (plan status ?)' : '';
+      const near = t.next ? `  ↑ ${t.next.days === 0 ? 'same day as' : t.next.days + 'd before'} 8-K` : t.prev ? `  ↓ ${t.prev.days === 0 ? 'same day as' : t.prev.days + 'd after'} 8-K` : '';
+      console.log(`  ${t.date}  SELL   ${t.insider.padEnd(24)} ${stake.padEnd(16)} ${money(t.value).padStart(12)} @ $${t.price}${flag}${near}`);
+    }
+  }
+  const s = st.summary;
+  console.log(`\n  ${s.soldWithinWindowBefore} of ${s.sellsConsidered} sells without a 10b5-1 indication came within ${st.window} days before an 8-K; ${s.soldWithinWindowAfter} within ${st.window} days after one.`);
+  if (s.topItemAhead) console.log(`  Most common item ahead of a sell: ${s.topItemAhead.item} ${s.topItemAhead.label} (${s.topItemAhead.sells} sells).`);
+  if (s.baselineShareOfDaysBeforeAn8K != null) console.log(`  Baseline: a random day in this period was within ${st.window} days before some 8-K ${Math.round(s.baselineShareOfDaysBeforeAn8K * 100)}% of the time${s.baselineShareOfDaysBeforeAn8K >= 0.9 ? ' — this company files so often that proximity alone says little; read the item codes' : ''}.`);
+  if (s.planSellsExcluded) console.log(`  ${s.planSellsExcluded} 10b5-1-indicated sells excluded: scheduled in advance, their timing is not the insider's.`);
+  console.log(`  Item codes only — the 8-K bodies were not read. A sell near a filing is timing, not evidence of knowledge or wrongdoing. → ${dir}/story.json`);
+}
+
 function tickets() {
   const rows = [];
   for (const t of existsSync(options.dataDir) ? readdirSync(options.dataDir) : []) {
@@ -154,11 +186,12 @@ function tickets() {
   }
 }
 
-const run = { rate, who, actions, tickets };
+const run = { rate, who, story, actions, tickets };
 if (options.help || !cmd || !run[cmd] || (cmd !== 'tickets' && !arg)) {
   console.log('🐀 uncle — insider exit patterns from public SEC filings\n');
   console.log('  uncle rate <TICKER>     uncle rate 0-100, six risk dimensions + buy counter-signal, evidence attached');
   console.log('  uncle who <name|CIK>    observed issuer history + own past vs recent behavior');
+  console.log('  uncle story <TICKER>    8-K item codes next to the sells: what kind of news each sell preceded');
   console.log('  uncle actions <TICKER>  raw insider transaction feed');
   console.log('  uncle tickets           leaderboard of rated tickers');
   console.log('\n  who: --as-of YYYY-MM-DD --recent-days 90 --limit all --json');
