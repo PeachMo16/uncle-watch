@@ -1,0 +1,48 @@
+name: publish
+
+# Publishes the package to npm. Two ways to run it:
+#   - push a tag like v0.4.0 (the tag must match package.json's version)
+#   - press "Run workflow" on the Actions tab
+#
+# No token is stored anywhere. npm's trusted publishing lets this workflow
+# prove it is PeachMo16/uncle-watch's publish.yml via GitHub's OIDC token,
+# and npm accepts that as the login. One-time setup on npmjs.com:
+#   package uncle-watch → Settings → Trusted Publisher → GitHub Actions
+#   owner: PeachMo16   repository: uncle-watch   workflow: publish.yml
+# Every release then carries a provenance attestation for free.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # trusted publishing needs npm >= 11.5.1; Node 22 ships an older npm
+      - run: npm install -g npm@latest
+      - run: npm test
+      - name: tag must match package.json
+        if: github.ref_type == 'tag'
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          [ "$pkg" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != package.json $pkg"; exit 1; }
+      - name: skip if this version is already on npm
+        id: check
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "uncle-watch@$v" version >/dev/null 2>&1; then
+            echo "uncle-watch@$v is already published"; echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.check.outputs.skip != 'true'
+        run: npm publish --access public
